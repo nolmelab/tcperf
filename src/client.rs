@@ -1,38 +1,36 @@
-use std::sync::mpsc::{ self, Receiver, Sender };
-use std::thread;
+use std::sync::mpsc::Receiver;
 use tokio::runtime::Builder;
 use tokio::net::TcpStream;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use bytes::{BytesMut, BufMut};
 use anyhow;
-use crate::event::Event;
+use log::{debug, info, error};
 
 pub fn run(args: super::Args) {
-    let (tx, rx) = mpsc::channel::<Event>();
-
     let runtime = Builder::new_multi_thread()
         .enable_io()
         .thread_name("run-tcp")
         .build()
         .unwrap();
 
-    let args2 = args.clone();
-
-    // thread::spawn(move || {
-      //   run_ui(&args2, rx);
-    // });
-
-    let _result = runtime.block_on(run_tcp(&args, tx));
+    let result = runtime.block_on(run_tcp(&args));
+    if let Err(e) = result {
+        error!("error: {:?}", e);
+    }
 }
 
-async fn run_tcp(args: &super::Args, tx: Sender<Event>) -> Result<(), anyhow::Error> {
+async fn run_tcp(args: &super::Args) -> Result<(), anyhow::Error> {
 
     let mut num_connection = 0;
     let mut handles = vec![];
 
+    info!("connecting {} clients", args.conns);
+
     while num_connection < args.conns {
 
-        let stream = TcpStream::connect(&args.listen).await?;
+        let stream = TcpStream::connect(&args.remote).await?;
+        info!("connected to {}", args.remote);
+
         let echo_size = args.size.clone();
 
         let handle = tokio::spawn(async move {
@@ -53,19 +51,37 @@ async fn run_tcp(args: &super::Args, tx: Sender<Event>) -> Result<(), anyhow::Er
 
 async fn run_stream(echo_size: u32, mut stream: TcpStream) -> Result<(), anyhow::Error> {
     let mut buf = BytesMut::with_capacity(echo_size as usize);
+    let mut echo_count = 0;
     let run = true;
 
     buf.put_bytes(1, echo_size as usize);
 
+    let peer = stream.peer_addr().unwrap();
+
     while run {
         stream.write_buf(&mut buf).await?;
         buf.clear();
-        stream.read_buf(&mut buf).await?;
+
+        let read = stream.read_buf(&mut buf).await;
+        match read {
+            Ok(n) => {
+                if n == 0 {
+                    error!("remote disconnected. peer:{}", peer);
+                    break;
+                }
+                else {
+                    debug!("echo size: {}", n);
+                }
+            }
+            Err(e) => {
+                error!("recv error:{}, peer:{}", e, peer);
+                return Err(e.into());
+            }
+        } 
+
+        echo_count += 1;
+        debug!("echo: {}", echo_count);
     }
 
     Ok(())
-}
-
-fn run_ui(args: &super::Args, rx: Receiver<Event>) {
-
 }

@@ -6,7 +6,7 @@ appenders:
     kind: console
     filters:
       - kind: threshold
-        level: trace
+        level: info
     encoder:
       pattern: "{d(%Y-%m-%d %H:%M:%S)} - {l}: {m}{n}"
 
@@ -14,7 +14,7 @@ appenders:
     kind: file
     filters:
       - kind: threshold
-        level: trace
+        level: info
     path: "logs/learn.log"
     encoder:
       pattern: "{d(%Y-%m-%d %H:%M:%S)} - {l}: {m}{n}"

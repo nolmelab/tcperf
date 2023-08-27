@@ -1,4 +1,6 @@
 use clap::Parser;
+use log::info;
+use log4rs;
 
 mod server;
 mod client;
@@ -17,7 +19,7 @@ pub struct Args {
     listen: String,
 
     /// address to connect
-    #[arg(short, long, default_value_t = String::from("0.0.0.0:7001"))]
+    #[arg(short, long, default_value_t = String::from("127.0.0.1:7001"))]
     remote: String,
  
     /// Number of connections 
@@ -30,7 +32,11 @@ pub struct Args {
 }
 
 fn main() {
+    log4rs::init_file("log.yaml", Default::default()).unwrap();
+
     let args = Args::parse();
+
+    info!("starting args: {:?}", args);
 
     if args.mode == "server" {
         server::run(args);
